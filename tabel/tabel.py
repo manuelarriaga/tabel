@@ -97,7 +97,15 @@ class Tabel(HashJoinMixin):
         copy (boolean) :
             Wether to make a copy of the data or to reference to the current
             memory location (when possible), default: True
-
+            
+        support_variable_len_str (boolean) :
+            If True, columns containing strings will be stored as numpy arrays of
+            dtype=object and will support strings of variable length. If False,
+            new values placed into existing (string) cells in a Tabel will be 
+            truncated to the length of the longest string previously stored in that
+            column. Please note only columns containing strings will be affected
+            by this setting.
+            
     Notes:
 
         1. It is possible to create an empty Tabel instance and later add data
@@ -139,7 +147,7 @@ class Tabel(HashJoinMixin):
     """dict: Fill vallues to be used when doing outer joins"""
 
 
-    def __init__(self, datastruct=None, columns=None, copy=True):
+    def __init__(self, datastruct=None, columns=None, copy=True, support_variable_len_str=True):
         self.data = list()
         """list :
             numpy.ndarrays of the column data. Each array containing one column
@@ -153,6 +161,8 @@ class Tabel(HashJoinMixin):
             long as the structure remains valid within this framwork. Validity
             can be checked with the method :func:`~tabel.Tabel.valid`.
             """
+        self.support_variable_len_str = support_variable_len_str
+        
         if datastruct is not None:
             if hasattr(datastruct, "items"):
                 datastruct_iter = datastruct.items()
@@ -185,7 +195,19 @@ class Tabel(HashJoinMixin):
     def _columnize(self, value, copy=True):
         if isstring(value) or (not hasattr(value, "__iter__")):
             value = [value] * max(1, len(self))
-        return np.array(value, copy=copy)
+
+        # decide if we will be setting the data type of the numpy array
+        
+        dtype = None # by default we let numpy.array() set the type of the array by leaving dtype set to None
+        
+        if self.support_variable_len_str: # we were told to make string columns support variable len
+
+            for v in value:
+                if isstring(v):
+                    dtype = np.object
+                    break
+
+        return np.array(value, copy=copy, dtype=dtype)
 
     def row_append(self, row):
         """Append a row reccord at the end of the Tabel.
